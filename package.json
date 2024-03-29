@@ -3,6 +3,7 @@
   "displayName": "ysyx-sdb-tui",
   "description": "",
   "version": "0.0.1",
+  "publisher": "CSerHtDuck",
   "engines": {
     "vscode": "^1.87.0"
   },
