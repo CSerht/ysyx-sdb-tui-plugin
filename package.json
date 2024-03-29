@@ -1,7 +1,8 @@
 {
   "name": "ysyx-sdb-tui",
   "displayName": "ysyx-sdb-tui",
-  "description": "",
+  "description": "The SDB TUI for ysyx NEMU or NPC",
+  "icon": "images/icon.png",
   "version": "0.0.1",
   "publisher": "CSerHtDuck",
   "engines": {
