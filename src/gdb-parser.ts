@@ -24,6 +24,65 @@ export async function getFilePathFromAddress(elfFile: string, addr: string) {
     }
 }
 
+/**
+ * @param elfFile 
+ * @param addr the value of pc
+ * @returns return the number of line that will be highlighted(start at 0),
+ *          return -1 if it's not be traced
+ * 
+ * Note:
+ * 1. line is start at 1 in GDB elf file
+ * 2. We assume that the addr has the corresponding source code,
+ *    it's traced by GDB.
+ */
+export async function getSrcHighLightLineNumber(elfFile: string, addr: string): Promise<number> {
+
+    // const name = await getFunctionNameFromAddress(elfFile, addr);
+
+    const currentAddr = "0x" + addr;
+    const nextAddr = "0x" + (parseInt(addr, 16) + 4).toString(16);
+    const gdbCommands = [
+        // `disassemble /s ${name}`,
+        `disassemble /s ${currentAddr}, ${nextAddr}`,
+        "quit"
+    ];
+
+    // try {
+    const result = await getGdbCommandResult(elfFile, gdbCommands);
+    // console.log("The result of getSrcHighLightLineNumber: ", result);
+    /**
+     * Reading symbols from ...add-riscv32-nemu.elf...
+     * Dump of assembler code from 0x800001bc to 0x800001c0:
+     * /home/jht/ysyx/six/ysyx2406-jht/abstract-machine/am/src/platform/nemu/trm.c:
+     * 24	void _trm_init() {
+     *    0x800001bc <_trm_init+0>:	addi	sp,sp,-32
+     * End of assembler dump.
+     */
+
+    /* get source file line number */
+
+    // return getSrcHLLineNumFromGdbResult(result, addr);
+    // result.split("\n")[3].split(" ")[0];
+
+    const lineText = result.split("\n")[3];
+    const pos = lineText.search(/^[0-9]+/);
+    
+    let line = -1;
+    if (pos !== -1) {
+        line = parseInt(lineText.substring(pos));
+        // console.log("The line number: ", line);
+    }
+
+    return line;
+
+
+    // } catch (error) {
+    //     console.error(`Failed to get file path: ${error}`);
+    //     return -1;
+    // }
+
+}
+
 function getFilePathFromGdbResult(info: string): string | null {
     /**
      * Reading symbols from /home/jht/ysyx/six/ysyx2406-jht/am-kernels/tests/cpu-tests/build/add-riscv32-nemu.elf...
@@ -45,7 +104,7 @@ function getFilePathFromGdbResult(info: string): string | null {
     if (pos !== -1) {
         const e = info.indexOf(":", pos);
         const path = info.substring(pos + 5, e);
-        console.log(path);
+        // console.log(path);
 
         return path;
     }
@@ -57,32 +116,6 @@ function getFilePathFromGdbResult(info: string): string | null {
 
     return null;
 }
-
-/**
- * line is start at 0
- * @param elfFile 
- * @param addr the value of pc
- * @returns return the number of line that will be highlighted(start at 0),
- *          return -1 if it's not be traced
- */
-export async function getSrcHighLightLineNumber(elfFile: string, addr: string) {
-
-    const name = await getFunctionNameFromAddress(elfFile, addr);
-    const gdbCommands = [
-        `disassemble /s ${name}`,
-        "quit"
-    ];
-
-    try {
-        const result = await getGdbCommandResult(elfFile, gdbCommands);
-        return getSrcHLLineNumFromGdbResult(result, addr);
-    } catch (error) {
-        console.error(`Failed to get file path: ${error}`);
-        return -1;
-    }
-
-}
-
 
 /**
  * 
@@ -104,11 +137,11 @@ async function getFunctionNameFromAddress(elfFile: string, addr: string) {
      * main + 16 in section .text
      */
     const result = await getGdbCommandResult(elfFile, gdbCommands);
-    console.log("The result of getFunctionNameFromAddress: ", result);
+    // console.log("The result of getFunctionNameFromAddress: ", result);
 
     /* get function name */
     const name = result.split("\n")[1].split(" ")[0];
-    console.log("The function name: ", name);
+    // console.log("The function name: ", name);
     return name;
 }
 
@@ -147,7 +180,7 @@ function getSrcHLLineNumFromGdbResult(info: string, addr: string) {
  */
     // const addr = 
     // const searchText = /\s*0x80000094/;
-    const searchText = new RegExp(`\\s*0x${addr}`);
+    const searchText = new RegExp(`^\\s*0x${addr}`);
     // match the start line number
     const lineRex = /^[0-9]+/;
 
@@ -182,20 +215,20 @@ function getGdbCommandResult(elfFile: string, gdbCommands: string[]): Promise<st
     // 将GDB命令转换为适合exec调用的格式
     const commandString = gdbCommands.map(cmd => `-ex "${cmd}"`).join(" ");
 
-    // 调用GDB，这里假设可执行文件是"./myProgram"
+    // 调用GDB
     const gdbCommand = `gdb-multiarch -q ${elfFile} ${commandString}`;
 
     // 使用exec 异步 执行GDB命令
     return new Promise((resolve, reject) => {
-        exec(gdbCommand, (error, stdout, stderr) => {
+        exec(gdbCommand, (error, stdout, /* stderr */) => {
             if (error) {
-                console.error(`exec error: ${error}`);
+                // console.error(`exec error: ${error}`);
                 reject(error);
                 return;
             }
-            if (stderr) {
-                console.error(`stderr: ${stderr}`);
-            }
+            // if (stderr) {
+                // console.error(`stderr: ${stderr}`);
+            // }
 
             // console.log(`stdout: \n${stdout}`);s
             resolve(stdout);

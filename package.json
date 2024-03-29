@@ -3,7 +3,7 @@
   "displayName": "ysyx-sdb-tui",
   "description": "The SDB TUI for ysyx NEMU or NPC",
   "icon": "image/icon.jpg",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "publisher": "CSerHtDuck",
   "engines": {
     "vscode": "^1.87.0"
@@ -16,8 +16,12 @@
   "contributes": {
     "commands": [
       {
-        "command": "extension.ysyx-sdb-tui",
-        "title": "Enable ysyx sdb tui"
+        "command": "extension.ysyx-sdb-tui-Enable",
+        "title": "ysyx sdb tui Enable"
+      },
+      {
+        "command": "extension.ysyx-sdb-tui-Disable",
+        "title": "ysyx sdb tui Disable"
       }
     ],
     "properties": {

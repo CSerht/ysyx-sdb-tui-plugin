@@ -5,6 +5,7 @@ import { Server } from "socket.io";
 import {
 	focusFileAndHighlightDisassembly, setDisassemblyFilePath,
 	focusFileAndHighlightSourceFile, setElfFilePath,
+	highLightDisassemblyAndSrc,
 } from "./file-op";
 
 let io: Server | undefined;
@@ -17,7 +18,8 @@ export function activate(context: vscode.ExtensionContext) {
 	// This line of code will only be executed once when your extension is activated
 	console.log('Congratulations, your extension "ysyx-sdb-tui" is now active!');
 	
-	let disposable = vscode.commands.registerCommand('extension.ysyx-sdb-tui', () => {
+	let disposable = vscode.commands.registerCommand('extension.ysyx-sdb-tui-Enable', () => {
+
 		const config = vscode.workspace.getConfiguration('ysyxSdbTUI');
 		const port = config.get('serverPort', 49159);
 		if (!io) {
@@ -28,10 +30,10 @@ export function activate(context: vscode.ExtensionContext) {
 			});
 
 			io.on("connection", (socket) => {
-				console.log("A user connected");
+				// console.log("A user connected");
 
 				socket.on("disconnect", () => {
-					console.log("User disconnected");
+					// console.log("User disconnected");
 				});
 
 				socket.on("cmd", (msg) => {
@@ -48,7 +50,7 @@ export function activate(context: vscode.ExtensionContext) {
 			focusOnTerminal();
 			// sendTerminalCommand();
 
-			console.log("Socket.io server running on port " + port);
+			// console.log("Socket.io server running on port " + port);
 		} else {
 			vscode.window.showWarningMessage("SDB TUI Server is running, don't open it again.");
 		}
@@ -57,12 +59,28 @@ export function activate(context: vscode.ExtensionContext) {
 	// 注册命令
 	context.subscriptions.push(disposable);
 
+	/* Disabling the server */
+	let disable = vscode.commands.registerCommand('extension.ysyx-sdb-tui-Disable', () => {
+		if (io) {
+			io.close();
+			io = undefined;
+			console.log("Socket.io server closed");
+			vscode.window.showInformationMessage('Disable YSYX SDB TUI Server');
+		} else {
+			vscode.window.showWarningMessage("SDB TUI Server is not running.");
+		}
+		
+	});
+
+	context.subscriptions.push(disable);
 }
 
 // This method is called when your extension is deactivated
 export function deactivate() {
-	io?.close();
-	console.log("Socket.io server closed");
+	if (io) {
+		io.close();
+		console.log("Socket.io server closed");
+	}
 }
 
 /**
@@ -94,7 +112,9 @@ function sendTerminalCommand() {
  * init [disas|gdb] file-path
  * hl   [disas|src] pc-addr: highlight the specific line
  * 
- * cmd example:
+ * hl all addr: concurrent execution of 'hl disas addr' and 'hl src addr'
+ * 
+ * cmd Example:
  * init disas .../am-kernels/tests/cpu-tests/build/add-riscv32-nemu.txt
  * hl disas 80000000
  * 
@@ -102,7 +122,7 @@ function sendTerminalCommand() {
  * hl src 80000000 : highlight the specific line in source file
  * */
 function handleMessage(msg: string) {
-	console.log("Message received from client: ", msg);
+	// console.log("Message received from client: ", msg);
 
 	// console.log(getFunctionNames());
 
@@ -127,14 +147,18 @@ function handleMessage(msg: string) {
 					focusFileAndHighlightDisassembly(list[2]);
 					break;
 
-				case "src": // hl src addr function-name
+				case "src": // hl src addr 
 					focusFileAndHighlightSourceFile(list[2]);
+					break;
+				
+				case "all": // hl all addr
+					highLightDisassemblyAndSrc(list[2]);
 					break;
 			}
 			break;
 
 		default:
-			console.log('illegal command');
+			// console.log('illegal command');
 			break;
 	}
 

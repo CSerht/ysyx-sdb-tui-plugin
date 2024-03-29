@@ -32,7 +32,7 @@ export function focusFileAndHighlightDisassembly(address: string) {
     const targetPath = disassemblyFilePath; //vscode.Uri.file(path).fsPath;
 
     if (!fs.existsSync(targetPath)) {
-        console.log(targetPath + " don't exist");
+        // console.log(targetPath + " don't exist");
         return;
     }
 
@@ -44,31 +44,43 @@ export function focusFileAndHighlightDisassembly(address: string) {
     if (targetEditor) {
         // the file is open and focus on it
         vscode.window.showTextDocument(targetEditor.document, {
-            preview: false,
+            preview: true,
             preserveFocus: true, // 高亮不需要聚焦，只需要获取到活动的编辑器
             viewColumn: vscode.ViewColumn.Two,
         }).then((editor) => {
             highlightDisassembly(editor, address);
         }).then(() => vscode.window.activeTerminal?.show());
-        console.log("File focus on");
+        // console.log("File focus on");
 
     } else {
         // open the file focus on it
         vscode.workspace.openTextDocument(targetPath).then((doc) => {
             vscode.window.showTextDocument(doc, {
-                preview: false,
+                preview: true,
                 preserveFocus: true,
                 viewColumn: vscode.ViewColumn.Two, // 在group 2打开文件，如果没有该group，打开个新的
             }).then((editor) => {
                 highlightDisassembly(editor, address);
             });
         }).then(() => vscode.window.activeTerminal?.show());
-        console.log("File opened: ", targetPath);
+        // console.log("File opened: ", targetPath);
     }
 
 }
 
-
+/**
+ * Concurrent execution of the following two functions:
+ * 1. focusFileAndHighlightDisassembly
+ * 2. focusFileAndHighlightSourceFile
+ * 
+ * @param addr the address of pc
+ */
+export async function highLightDisassemblyAndSrc(addr: string) {
+    await Promise.all([
+        focusFileAndHighlightDisassembly(addr),
+        focusFileAndHighlightSourceFile(addr)
+    ]);
+}
 
 /**
  * Highlight the specific address in the focused on file.
@@ -86,7 +98,7 @@ function highlightDisassembly(editor: vscode.TextEditor, address: string) {
 
     const document = editor.document
     if (!document) {
-        console.log('no document');
+        // console.log('no document');
         return;
     }
     const searchText = address + ':'
@@ -102,14 +114,14 @@ function highlightDisassembly(editor: vscode.TextEditor, address: string) {
     for (let i = 0; i < lineNum; i++) {
         const lineText = document?.lineAt(i).text
         if (lineText?.search(searchText) != -1) {
-            console.log('line: ' + (i + 1));
+            // console.log('line: ' + (i + 1));
             isExist = true;
             highlightLine = i; // start from 0
         }
     }
 
     if (!isExist) {
-        console.log(searchText + ' search failed')
+        // console.log(searchText + ' search failed')
         return;
     }
 
@@ -133,7 +145,7 @@ function highlightDisassembly(editor: vscode.TextEditor, address: string) {
     editor.selection = new vscode.Selection(highlightLine, 0, highlightLine, 0);
     editor.revealRange(range, vscode.TextEditorRevealType.InCenter); // show in center
 
-    console.log('高亮行号：', highlightLine);
+    // console.log('高亮行号：', highlightLine);
 }
 
 
@@ -150,15 +162,15 @@ export async function focusFileAndHighlightSourceFile(address: string) {
     const filePath = highlightTarget[0];
     const line = highlightTarget[1];
 
-    console.log('++++++++filePath: ', filePath);
-    console.log('++++++++line: ', line);
+    // console.log('++++++++filePath: ', filePath);
+    // console.log('++++++++line: ', line);
     if(filePath == null || line == -1) {
         return;
     }
 
     /* get editor */
     const targetPath = vscode.Uri.file(filePath).fsPath;
-    console.log('Source file targetPath: ', targetPath);
+    // console.log('Source file targetPath: ', targetPath);
     
     const targetEditor = vscode.window.visibleTextEditors.find((editor) => {
         editor.document.uri.fsPath === targetPath
@@ -166,28 +178,46 @@ export async function focusFileAndHighlightSourceFile(address: string) {
 
     if (targetEditor) {
         // the file is open and focus on it
-        vscode.window.showTextDocument(targetEditor.document, {
-            preview: true,
-            preserveFocus: true, 
-            viewColumn: vscode.ViewColumn.One,
-        }).then((editor) => {
-            highlightLine(editor, line);
-        }).then(() => vscode.window.activeTerminal?.show());
-        console.log("File focus on");
+        // vscode.window.showTextDocument(targetEditor.document, {
+        //     preview: true,
+        //     preserveFocus: true,
+        //     viewColumn: vscode.ViewColumn.One,
+        // }).then((editor) => {
+        //     highlightLine(editor, line);
+        // }).then(() => vscode.window.activeTerminal?.show());
+        showTextAndHighlight(targetEditor.document, line);
+        // console.log("File focus on");
 
     } else {
         // open the file focus on it
-        vscode.workspace.openTextDocument(targetPath).then((doc) => {
-            vscode.window.showTextDocument(doc, {
-                preview: false,
-                preserveFocus: true, // 高亮不需要聚焦，只需要获取到活动的编辑器
-                viewColumn: vscode.ViewColumn.One,
-            }).then((editor) => {
-                highlightLine(editor, line);
-            });
-        }).then(() => vscode.window.activeTerminal?.show());
-        console.log("File opened: ", targetPath);
+        vscode.workspace.openTextDocument(targetPath).then(
+            (doc) => {
+
+            // vscode.window.showTextDocument(doc, {
+            //     preview: true,
+            //     preserveFocus: true, // 高亮不需要聚焦，只需要获取到活动的编辑器
+            //     viewColumn: vscode.ViewColumn.One,
+            // }).then((editor) => {
+            //     highlightLine(editor, line);
+            // }).then(() => vscode.window.activeTerminal?.show());
+            showTextAndHighlight(doc, line);    
+        });
+        // console.log("File opened: ", targetPath);
     }
+}
+
+let previousLine: number = -1;
+function showTextAndHighlight(document: vscode.TextDocument, line: number) {
+    vscode.window.showTextDocument(document, {
+        preview: true,
+        preserveFocus: true, // 高亮不需要聚焦，只需要获取到活动的编辑器
+        viewColumn: vscode.ViewColumn.One,
+    }).then((editor) => {
+        if (line != previousLine) {
+            highlightLine(editor, line);
+            previousLine = line;
+        }
+    }).then(() => vscode.window.activeTerminal?.show());
 }
 
 function getFilePathAndHighlightLine(address: string): Promise<[string | null, number]> {
@@ -198,20 +228,20 @@ function getFilePathAndHighlightLine(address: string): Promise<[string | null, n
         getFilePathFromAddress(elfFilePath, address).then((filePath) => {
             file = filePath;
             if (filePath == null) {
-                console.log('The function is not be traced');
+                // console.log('The function is not be traced');
                 resolve([null, -1]);
             } else {
-                console.log('filePath: ', filePath);
+                // console.log('filePath: ', filePath);
 
                 /* get the number of line that will be highlighted (gdb disas /s name) */
                 getSrcHighLightLineNumber(elfFilePath, address).then((lineNumber) => {
                     line = lineNumber;
                     if (lineNumber == -1) {
-                        console.log('Clear the current highlight');
+                        // console.log('Clear the current highlight');
                         sourceFileHighlight?.dispose();
                         resolve([null, -1]);
                     } else {
-                        console.log('hl lineNumber: ', lineNumber);
+                        // console.log('hl lineNumber: ', lineNumber);
                         resolve([file, line]);
                     }
                 }); 
@@ -251,7 +281,7 @@ function highlightLine(editor: vscode.TextEditor, line: number) {
     editor.selection = new vscode.Selection(line, 0, line, 0);
     editor.revealRange(range, vscode.TextEditorRevealType.InCenter);
 
-    console.log('高亮行号：', line);
+    // console.log('高亮行号：', line);
 }
 
 
