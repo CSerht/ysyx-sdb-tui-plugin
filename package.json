@@ -3,7 +3,7 @@
   "displayName": "ysyx-sdb-tui",
   "description": "The SDB TUI for ysyx NEMU or NPC",
   "icon": "image/icon.jpg",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "publisher": "CSerHtDuck",
   "engines": {
     "vscode": "^1.87.0"
@@ -24,11 +24,27 @@
         "title": "ysyx sdb tui Disable"
       }
     ],
-    "properties": {
-      "ysyxSdbTUI.serverPort": {
-        "type": "number",
-        "default": 49159,
-        "description": "Socket server port"
+
+    "configuration": {
+      "title": "Ysyx sdb tui",
+      "properties": {
+        "ysyxSdbTui.serverPort": {
+          "type": "number",
+          "default": 49159,
+          "description": "Set the socket.io server port. Modify your NEMU port simultaneously."
+        },
+
+        "ysyxSdbTui.gdbTool" : {
+          "type": "string",
+          "default": "gdb-multiarch",
+          "description": "Set your gdb cross-compiler tool."
+        },
+
+        "ysyxSdbTui.highlightColor" : {
+          "type": "string",
+          "default": "rgba(210, 212, 63, 0.3)",
+          "description": "Set the highlight color."
+        }
       }
     }
   },
@@ -52,9 +68,10 @@
     "typescript": "^5.3.3"
   },
   "dependencies": {
-    "@types/socket.io": "^3.0.2"
+    "@types/socket.io": "^3.0.2",
+    "gdb-js": "^1.3.0"
   },
-   "repository": {
+  "repository": {
     "type": "git",
     "url": "https://github.com/CSerht/ysyx-sdb-tui-plugin.git"
   }

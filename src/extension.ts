@@ -8,7 +8,13 @@ import {
 	highLightDisassemblyAndSrc,
 } from "./file-op";
 
+import {initGdbMiSession, sendGdbMiCmdAndGetResult} from "./gdb-parser";
+
+// const GdbSession = require('./gdb_session');
+
 let io: Server | undefined;
+export let gdbTool: string;
+export let highlightColor: string;
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -20,8 +26,13 @@ export function activate(context: vscode.ExtensionContext) {
 	
 	let disposable = vscode.commands.registerCommand('extension.ysyx-sdb-tui-Enable', () => {
 
-		const config = vscode.workspace.getConfiguration('ysyxSdbTUI');
+		const config = vscode.workspace.getConfiguration('ysyxSdbTui');
+		// If you modify the value of port, modify it in package.json too.
 		const port = config.get('serverPort', 49159);
+		// const port: number | undefined = config.get('serverPort');
+		gdbTool = config.get('gdbTool', 'gdb-multiarch');
+		highlightColor = config.get('highlightColor', 'rgba(210, 212, 63, 0.3)');
+
 		if (!io) {
 			io = new Server(port, {
 				cors: {
@@ -54,6 +65,12 @@ export function activate(context: vscode.ExtensionContext) {
 		} else {
 			vscode.window.showWarningMessage("SDB TUI Server is running, don't open it again.");
 		}
+
+		
+		initGdbMiSession(); //.then(() => {
+			// sendGdbMiCmdAndGetResult('-symbol-info-functions');
+		// });
+
 	});
 
 	// 注册命令

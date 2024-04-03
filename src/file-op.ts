@@ -3,7 +3,12 @@ import fs, { copyFileSync } from 'fs'
 import {
     getFilePathFromAddress,
     getSrcHighLightLineNumber,
+    getFilePathAndLine,
 } from "./gdb-parser"; // no '.js' suffix 
+
+import {highlightColor} from './extension'
+
+// const currentPath = require('path');
 
 let disassemblyFilePath: string; // for open disas file and highlight
 let elfFilePath: string; // compile with -ggdb, for gdb parser
@@ -135,7 +140,7 @@ function highlightDisassembly(editor: vscode.TextEditor, address: string) {
 
     // 创建装饰类型，这里设置背景色为 blue
     disassemblyHighlight = vscode.window.createTextEditorDecorationType({
-        backgroundColor: 'rgba(57, 155, 237, 0.4)'
+        backgroundColor: `${highlightColor}`,
     });
 
     // 应用装饰类型到编辑器
@@ -157,7 +162,8 @@ function highlightDisassembly(editor: vscode.TextEditor, address: string) {
  */
 export async function focusFileAndHighlightSourceFile(address: string) {
     /* get highlight infomation */
-    const highlightTarget = await getFilePathAndHighlightLine(address);
+    // const highlightTarget = await getFilePathAndHighlightLine(address);
+    const highlightTarget = await getFilePathAndLine(elfFilePath, address);
     
     const filePath = highlightTarget[0];
     const line = highlightTarget[1];
@@ -213,40 +219,45 @@ function showTextAndHighlight(document: vscode.TextDocument, line: number) {
         preserveFocus: true, // 高亮不需要聚焦，只需要获取到活动的编辑器
         viewColumn: vscode.ViewColumn.One,
     }).then((editor) => {
-        if (line != previousLine) {
+        // if (line != previousLine) {
             highlightLine(editor, line);
-            previousLine = line;
-        }
+            // previousLine = line;
+        // }
     }).then(() => vscode.window.activeTerminal?.show());
 }
 
-function getFilePathAndHighlightLine(address: string): Promise<[string | null, number]> {
+async function getFilePathAndHighlightLine(address: string): Promise<[string | null, number]> {
     return new Promise((resolve) => {
         /* get the file path of the function (gdb info functions name) */
-        let file: string | null;
-        let line: number;
-        getFilePathFromAddress(elfFilePath, address).then((filePath) => {
-            file = filePath;
-            if (filePath == null) {
-                // console.log('The function is not be traced');
-                resolve([null, -1]);
-            } else {
-                // console.log('filePath: ', filePath);
+        // let file: string | null;
+        // let line: number;
 
-                /* get the number of line that will be highlighted (gdb disas /s name) */
-                getSrcHighLightLineNumber(elfFilePath, address).then((lineNumber) => {
-                    line = lineNumber;
-                    if (lineNumber == -1) {
-                        // console.log('Clear the current highlight');
-                        sourceFileHighlight?.dispose();
-                        resolve([null, -1]);
-                    } else {
-                        // console.log('hl lineNumber: ', lineNumber);
-                        resolve([file, line]);
-                    }
-                }); 
-            }
+        getFilePathAndLine(elfFilePath, address).then((result) => {
+            // resolve([result.fullname, result.line]);
+            resolve(result);
         });
+
+        // getFilePathFromAddress(elfFilePath, address).then((filePath) => {
+        //     file = filePath;
+        //     if (filePath == null) {
+        //         // console.log('The function is not be traced');
+        //         resolve([null, -1]);
+        //     } else {
+        //         // console.log('filePath: ', filePath);
+        //         /* get the number of line that will be highlighted (gdb disas /s name) */
+        //         getSrcHighLightLineNumber(elfFilePath, address).then((lineNumber) => {
+        //             line = lineNumber;
+        //             if (lineNumber == -1) {
+        //                 // console.log('Clear the current highlight');
+        //                 sourceFileHighlight?.dispose();
+        //                 resolve([null, -1]);
+        //             } else {
+        //                 // console.log('hl lineNumber: ', lineNumber);
+        //                 resolve([file, line]);
+        //             }
+        //         }); 
+        //     }
+        // });
     });
 }
 
@@ -269,19 +280,33 @@ function highlightLine(editor: vscode.TextEditor, line: number) {
     // 创建一个新的范围（Range），用于高亮
     let range = editor.document.lineAt(line).range;
 
+    // 计算高亮范围
+    // const start = new vscode.Position(line, 0);
+    // const end = new vscode.Position(line, Number.MAX_SAFE_INTEGER);
+    // let end = new vscode.Position(line, 3);
+    // const range = new vscode.Range(start, end);
+
     // 创建装饰类型，这里设置背景色为 blue
     sourceFileHighlight = vscode.window.createTextEditorDecorationType({
-        backgroundColor: 'rgba(57, 155, 237, 0.4)'
+        // backgroundColor: 'rgba(57, 155, 237, 0.4)',
+        backgroundColor: `${highlightColor}`,
+        isWholeLine: true,
+
+        // currentPath: /home/../ysyx-sdb-tui-server/out/
+        // gutterIconPath: currentPath.join(__dirname, '../src/decoration/arrow.png'), 
+        // gutterIconSize: 'contain'
     });
 
     // 应用装饰类型到编辑器
     editor.setDecorations(sourceFileHighlight, [range]);
 
+    // console.log('icon path: ', currentPath.join(__dirname, 'image/icon.jpg'));
+
     // jump to line and make it middle
     editor.selection = new vscode.Selection(line, 0, line, 0);
     editor.revealRange(range, vscode.TextEditorRevealType.InCenter);
 
-    // console.log('高亮行号：', line);
+    console.log('高亮行号：', line);
 }
 
 

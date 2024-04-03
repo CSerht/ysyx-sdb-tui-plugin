@@ -1,4 +1,11 @@
 import { exec } from "child_process"
+import GdbSession from './gdb_session';
+import {gdbTool} from './extension'
+
+
+/**
+ * See Chapter 27: The gdb/mi Interface in gdb documentation.
+ */
 
 /**
  * 
@@ -211,12 +218,13 @@ function getSrcHLLineNumFromGdbResult(info: string, addr: string) {
     return lineNum;
 }
 
+
 function getGdbCommandResult(elfFile: string, gdbCommands: string[]): Promise<string> {
     // 将GDB命令转换为适合exec调用的格式
     const commandString = gdbCommands.map(cmd => `-ex "${cmd}"`).join(" ");
 
     // 调用GDB
-    const gdbCommand = `gdb-multiarch -q ${elfFile} ${commandString}`;
+    const gdbCommand = `${gdbTool} -q ${elfFile} ${commandString}`;
 
     // 使用exec 异步 执行GDB命令
     return new Promise((resolve, reject) => {
@@ -235,4 +243,90 @@ function getGdbCommandResult(elfFile: string, gdbCommands: string[]): Promise<st
         });
     });
 
+}
+
+//////////////////////////////////////////////////////////////////////
+
+let gdbsession: GdbSession;
+
+export function initGdbMiSession() {
+    return new Promise((resolve) => {
+        const file = '/home/jht/ysyx/six/ysyx2406-jht/am-kernels/kernels/yield-os/build/yield-os-riscv32-nemu.elf';
+        gdbsession = new GdbSession(file);
+        resolve(void 0);
+    });
+}
+
+/**
+ * We assume that the command is valid and gdb is running.
+ * @param command 
+ * 
+ * e.g.
+ * - '-symbol-info-functions'
+ */
+export async function sendGdbMiCmdAndGetResult(command: string) {
+    // console.log("cmd 1 **************");
+    let result = await gdbsession.sendCommandAndGetOutput(`${command}`);
+    console.log(result);
+    // result = await gdbsession.sendCommandAndGetOutput('-symbol-list-lines /home/jht/ysyx/six/ysyx2406-jht/am-kernels/kernels/yield-os/yield-os.c');
+}
+
+/**
+ * 
+ * @param elfFile 
+ * @param addr 80000000, need to be converted to 0x80000000
+ * @returns [null, -1] or [file path, line number]
+ *   
+ */
+export async function getFilePathAndLine(elfFile: string, addr: string): Promise<[string | null, number]> {
+    /**
+     * -data-disassemble -s 0x80000090 -e 0x80000094 -- 4
+     * 
+     * Get Result:
+     * 1. debugging
+     * asm_insns=[
+     *     src_and_asm_line={
+     *         line="69",
+     *         file="/home/jht/ysyx/six/ysyx2406-jht/am-kernels/kernels/yield-os/yield-os.c",
+     *         fullname="/home/jht/ysyx/six/ysyx2406-jht/am-kernels/kernels/yield-os/yield-os.c",
+     *         line_asm_insn=[{address="0x80000090",func-name="schedule",offset="16",inst="auipc\ta5,0x3"}]
+     *     }
+     * ]
+     * 
+     * 2. no debugging
+     * asm_insns=[{address="0x80000000",func-name="_start",offset="0",inst="li\ts0,0"}]
+     */
+
+    const command = `-data-disassemble -s ${convertAddr(addr)} -e ${convertNextAddr(addr)} -- 4`;
+    let result: string = await gdbsession.sendCommandAndGetOutput(command);
+
+    console.log("The result of getFilePathAndLine: ", result);
+
+    /* get fullname and line */
+    let fullname: string | null = null;
+    let line: number = -1;
+
+    if (result.search("src_and_asm_line={") == -1) {
+        // no debugging
+        return [null, -1];
+    }
+
+    const pos1 = result.search("fullname=\"");
+    const pos2 = result.search("line=\"");
+    fullname = result.substring(pos1 + 10, result.indexOf("\"", pos1 + 10));
+    line = parseInt(result.substring(pos2 + 6, result.indexOf("\"", pos2 + 6)));
+
+    console.log("The fullname: ", fullname);
+    console.log("The line: ", line);
+    return [fullname, line];
+
+}
+
+
+function convertAddr(addr: string) {
+    return "0x" + addr;
+}
+
+function convertNextAddr(addr: string) {
+    return "0x" + (parseInt(addr, 16) + 4).toString(16);
 }

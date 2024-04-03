@@ -10,5 +10,8 @@
     "typescript.tsc.autoDetect": "off",
     "files.watcherExclude": {
         "**/target": true
-    }
+    },
+
+    // Enable/disable default JavaScript suggestions.
+    "javascript.suggest.enabled": true
 }
