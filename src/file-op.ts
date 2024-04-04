@@ -24,7 +24,8 @@ export async function setElfFilePath(path: string) {
     elfFilePath = vscode.Uri.file(path).fsPath;
 
     // start gdb session until it's finished
-	await initGdbMiSession(elfFilePath);
+    await initGdbMiSession(elfFilePath);
+    console.log("gdb session setup finished");
 }
 
 /**

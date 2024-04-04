@@ -73,6 +73,66 @@ export async function getFilePathAndLine(elfFile: string, addr: string): Promise
 
 }
 
+type PcLine = {
+    pc: string;
+    line: string;
+};
+
+/**
+ * 
+ * @param filePath 
+ * @param line 
+ * @returns If the line is debugging, the line will correspond to 
+ *          one or more pc, return the first pc (number value)
+ *          If the line is not debugging, return null.
+ * 
+ * Result example:
+ * lines=[{pc="0x08048554",line="7"},{pc="0x0804855a",line="8"}] 
+ */
+export async function parseBreakpointByGdb(filePath: string, line: number) {
+    console.log("parseBreakpointByGdb: ", filePath, line);
+
+    const command = `-symbol-list-lines ${filePath}`;
+    let output: string = await gdbsession?.sendCommandAndGetOutput(command);
+    // console.log("The output: ", output);
+
+    /* handle the output */
+    // remove the prefix and suffix, get '[{pc="0x80000000",line="7"},{...},{...}]'
+    const jsonPart = output.slice(output.indexOf('['), output.indexOf(']') + 1);
+
+    // convert GDB MI to JSON, get '[{"pc":"0x80000000","line":"7"},{...},{...}]'
+    const jsonFormat = jsonPart.replace(/\b(pc|line)=/g, '"$1":').replace(/'/g, '"');
+
+    // console.log("The jsonFormat: ", jsonFormat);
+    /**
+     * Parse the jsonFormat to json format
+     * 
+     * 0:{pc: '0x80000010', line: '44'}
+     * 1:{pc: '0x80000024', line: '49'}
+     * 2:{pc: '0x80000028', line: '49'}
+     * 3:{pc: '0x80000054', line: '51'}
+     * 4:{pc: '0x80000078', line: '54'}
+     * 5:{pc: '0x8000007c', line: '49'}
+     */
+    const json: PcLine[] = JSON.parse(jsonFormat);
+
+    // console.log("The json: ", json);
+
+    /* get pc */
+    for (let i = 0; i < json.length; i++) {
+        const pc = json[i].pc;
+        const lineNum = json[i].line;
+        // console.log("pc: ", pc);
+        // console.log("line: ", line);
+        if (line == parseInt(lineNum, 10)) {
+            console.log(`line: ${line} --> pc: ${pc}`);
+            return parseInt(pc, 16);
+        }
+    }
+
+    return null;
+}
+
 
 function convertAddr(addr: string) {
     return "0x" + addr;

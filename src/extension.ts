@@ -9,6 +9,7 @@ import {
 } from "./file-op";
 
 import { gdbsession } from './gdb-parser';
+import { clearAllBreakpoints,listenAndOperateBreakpoints } from './breakpoints';
 
 let io: Server | undefined;
 export let gdbTool: string;
@@ -31,6 +32,8 @@ export function activate(context: vscode.ExtensionContext) {
 		gdbTool = config.get('gdbTool', 'gdb-multiarch');
 		highlightColor = config.get('highlightColor', 'rgba(210, 212, 63, 0.3)');
 
+
+
 		if (!io) {
 			io = new Server(port, {
 				cors: {
@@ -39,10 +42,14 @@ export function activate(context: vscode.ExtensionContext) {
 			});
 
 			io.on("connection", (socket) => {
-				// console.log("A user connected");
+				console.log("A user connected");
+				// clear all breakpoints before listening breakpoints
+				clearAllBreakpoints();
+				listenAndOperateBreakpoints();
 
 				socket.on("disconnect", () => {
-					// console.log("User disconnected");
+					console.log("User disconnected");
+					gdbsession?.close();
 				});
 
 				socket.on("cmd", (msg) => {
@@ -60,6 +67,7 @@ export function activate(context: vscode.ExtensionContext) {
 			// sendTerminalCommand();
 
 			// console.log("Socket.io server running on port " + port);
+
 		} else {
 			vscode.window.showWarningMessage("SDB TUI Server is running, don't open it again.");
 		}
@@ -74,6 +82,7 @@ export function activate(context: vscode.ExtensionContext) {
 			io.close();
 			io = undefined;
 			console.log("Socket.io server closed");
+			gdbsession?.close();
 			vscode.window.showInformationMessage('Disable YSYX SDB TUI Server');
 		} else {
 			vscode.window.showWarningMessage("SDB TUI Server is not running.");
