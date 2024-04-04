@@ -8,9 +8,7 @@ import {
 	highLightDisassemblyAndSrc,
 } from "./file-op";
 
-import {initGdbMiSession, sendGdbMiCmdAndGetResult} from "./gdb-parser";
-
-// const GdbSession = require('./gdb_session');
+import { gdbsession } from './gdb-parser';
 
 let io: Server | undefined;
 export let gdbTool: string;
@@ -65,15 +63,9 @@ export function activate(context: vscode.ExtensionContext) {
 		} else {
 			vscode.window.showWarningMessage("SDB TUI Server is running, don't open it again.");
 		}
-
-		
-		initGdbMiSession(); //.then(() => {
-			// sendGdbMiCmdAndGetResult('-symbol-info-functions');
-		// });
-
 	});
 
-	// 注册命令
+	// register the command
 	context.subscriptions.push(disposable);
 
 	/* Disabling the server */
@@ -96,6 +88,7 @@ export function activate(context: vscode.ExtensionContext) {
 export function deactivate() {
 	if (io) {
 		io.close();
+		gdbsession?.close();
 		console.log("Socket.io server closed");
 	}
 }
@@ -114,14 +107,18 @@ function focusOnTerminal() {
 	}
 }
 
-/*
+/**
+ * Send terminal command to do something.
+ * 
+ * DON'T remove this function, maybe useful in the future.
+ */
 function sendTerminalCommand() {
 	const terminal = vscode.window.activeTerminal;
 	if (terminal) {
 		terminal.sendText("cd $NEMU_HOME; cd ..");
 	}
 }
-*/
+
 
 /**
  * cmd arg1 arg2 ...
@@ -141,8 +138,6 @@ function sendTerminalCommand() {
 function handleMessage(msg: string) {
 	// console.log("Message received from client: ", msg);
 
-	// console.log(getFunctionNames());
-
 	const list = msg.split(" ");
 	const cmd = list[0];
 	switch (cmd) {
@@ -157,7 +152,15 @@ function handleMessage(msg: string) {
 					break;
 			}
 			break;
+		
+		case "show":
+			switch (list[1]) {
+				case "log": // show log file-path: split terminal and show nemu-log (right)
 
+					break;
+			}
+			break
+		
 		case "hl": // highlight, hl [disas|source-file] addr
 			switch (list[1]) {
 				case "disas": // hl disas addr
@@ -184,8 +187,6 @@ function handleMessage(msg: string) {
 	const file_path = (msg.split(" ")[1]).slice(0, -1);
 	// const file_path = file_info.substring(0, file_info.length - 1); // remove ':'
 	const addr = msg.split(" ")[2];
-
-	// focusFileAndHighlight(addr);
 }
 
 

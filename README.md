@@ -6,6 +6,16 @@ The ysyx-sdb-tui is a extension for NEMU or NPC SDB debugging tool. It can make 
 
 It can highlight the source code and disassembly code.
 
+## Features
+
+- support highlight the specific line in the source file and disassembly file, but not support trace disassembly source file
+- support breakpoint in the source file
+- high performance, real-time response
+- parameters can be set by the user
+    - the port of the socket server
+    - the gdb cross-compiler toolchain
+    - the color of the highlight line
+
 ## Dependencies
 
 To use this extension, you need to add interface to NEMU or NPC. The source code and guide is in [another repository](https://github.com/CSerht/ysyx-sdb-tui-client).

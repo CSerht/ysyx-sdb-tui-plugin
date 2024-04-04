@@ -1,12 +1,8 @@
 import * as vscode from 'vscode';
 import fs, { copyFileSync } from 'fs'
-import {
-    getFilePathFromAddress,
-    getSrcHighLightLineNumber,
-    getFilePathAndLine,
-} from "./gdb-parser"; // no '.js' suffix 
-
-import {highlightColor} from './extension'
+import {getFilePathAndLine} from "./gdb-parser"; // no '.js' suffix 
+import { highlightColor } from './extension'
+import {initGdbMiSession} from "./gdb-parser";
 
 // const currentPath = require('path');
 
@@ -14,15 +10,35 @@ let disassemblyFilePath: string; // for open disas file and highlight
 let elfFilePath: string; // compile with -ggdb, for gdb parser
 
 
-let disassemblyHighlight: vscode.TextEditorDecorationType | undefined;
-let sourceFileHighlight: vscode.TextEditorDecorationType | undefined;
+// let disassemblyHighlight: vscode.TextEditorDecorationType | undefined;
+// let sourceFileHighlight: vscode.TextEditorDecorationType | undefined;
+let disassemblyHighlight = {current: undefined as vscode.TextEditorDecorationType | undefined};
+let sourceFileHighlight = {current: undefined as vscode.TextEditorDecorationType | undefined};
+
 
 export function setDisassemblyFilePath(path: string) {
     disassemblyFilePath = vscode.Uri.file(path).fsPath;
 }
 
-export function setElfFilePath(path: string) {
+export async function setElfFilePath(path: string) {
     elfFilePath = vscode.Uri.file(path).fsPath;
+
+    // start gdb session until it's finished
+	await initGdbMiSession(elfFilePath);
+}
+
+/**
+ * Concurrent execution of the following two functions:
+ * 1. focusFileAndHighlightDisassembly
+ * 2. focusFileAndHighlightSourceFile
+ * 
+ * @param addr the address of pc
+ */
+export async function highLightDisassemblyAndSrc(addr: string) {
+    await Promise.all([
+        focusFileAndHighlightDisassembly(addr),
+        focusFileAndHighlightSourceFile(addr)
+    ]);
 }
 
 /**
@@ -73,19 +89,7 @@ export function focusFileAndHighlightDisassembly(address: string) {
 
 }
 
-/**
- * Concurrent execution of the following two functions:
- * 1. focusFileAndHighlightDisassembly
- * 2. focusFileAndHighlightSourceFile
- * 
- * @param addr the address of pc
- */
-export async function highLightDisassemblyAndSrc(addr: string) {
-    await Promise.all([
-        focusFileAndHighlightDisassembly(addr),
-        focusFileAndHighlightSourceFile(addr)
-    ]);
-}
+
 
 /**
  * Highlight the specific address in the focused on file.
@@ -109,19 +113,15 @@ function highlightDisassembly(editor: vscode.TextEditor, address: string) {
     const searchText = address + ':'
     // const lineNum = (document?.lineCount) ? document?.lineCount : 0
     const lineNum = document?.lineCount || 0;
-    // const regex = /8[a-fA-F0-9]+:/;
-
-    // const s = document?.getText()
-    // console.log(s)
 
     let isExist = false;
-    let highlightLine = 0;
+    let line = 0;
     for (let i = 0; i < lineNum; i++) {
         const lineText = document?.lineAt(i).text
         if (lineText?.search(searchText) != -1) {
             // console.log('line: ' + (i + 1));
             isExist = true;
-            highlightLine = i; // start from 0
+            line = i + 1; // start from 1 in vscode
         }
     }
 
@@ -131,26 +131,7 @@ function highlightDisassembly(editor: vscode.TextEditor, address: string) {
     }
 
     /* Highlight line */
-
-    // 清除之前的装饰
-    disassemblyHighlight?.dispose();
-
-    // 创建一个新的范围（Range），用于高亮
-    let range = editor.document.lineAt(highlightLine).range;
-
-    // 创建装饰类型，这里设置背景色为 blue
-    disassemblyHighlight = vscode.window.createTextEditorDecorationType({
-        backgroundColor: `${highlightColor}`,
-    });
-
-    // 应用装饰类型到编辑器
-    editor.setDecorations(disassemblyHighlight, [range]);
-
-    // jump to line and make it middle
-    editor.selection = new vscode.Selection(highlightLine, 0, highlightLine, 0);
-    editor.revealRange(range, vscode.TextEditorRevealType.InCenter); // show in center
-
-    // console.log('高亮行号：', highlightLine);
+    highlightLine(editor, line, disassemblyHighlight);
 }
 
 
@@ -162,14 +143,13 @@ function highlightDisassembly(editor: vscode.TextEditor, address: string) {
  */
 export async function focusFileAndHighlightSourceFile(address: string) {
     /* get highlight infomation */
-    // const highlightTarget = await getFilePathAndHighlightLine(address);
     const highlightTarget = await getFilePathAndLine(elfFilePath, address);
     
     const filePath = highlightTarget[0];
     const line = highlightTarget[1];
 
-    // console.log('++++++++filePath: ', filePath);
-    // console.log('++++++++line: ', line);
+    // console.log('filePath: ', filePath);
+    // console.log('line: ', line);
     if(filePath == null || line == -1) {
         return;
     }
@@ -184,30 +164,13 @@ export async function focusFileAndHighlightSourceFile(address: string) {
 
     if (targetEditor) {
         // the file is open and focus on it
-        // vscode.window.showTextDocument(targetEditor.document, {
-        //     preview: true,
-        //     preserveFocus: true,
-        //     viewColumn: vscode.ViewColumn.One,
-        // }).then((editor) => {
-        //     highlightLine(editor, line);
-        // }).then(() => vscode.window.activeTerminal?.show());
         showTextAndHighlight(targetEditor.document, line);
         // console.log("File focus on");
 
     } else {
         // open the file focus on it
         vscode.workspace.openTextDocument(targetPath).then(
-            (doc) => {
-
-            // vscode.window.showTextDocument(doc, {
-            //     preview: true,
-            //     preserveFocus: true, // 高亮不需要聚焦，只需要获取到活动的编辑器
-            //     viewColumn: vscode.ViewColumn.One,
-            // }).then((editor) => {
-            //     highlightLine(editor, line);
-            // }).then(() => vscode.window.activeTerminal?.show());
-            showTextAndHighlight(doc, line);    
-        });
+            (doc) => {showTextAndHighlight(doc, line);});
         // console.log("File opened: ", targetPath);
     }
 }
@@ -216,51 +179,18 @@ let previousLine: number = -1;
 function showTextAndHighlight(document: vscode.TextDocument, line: number) {
     vscode.window.showTextDocument(document, {
         preview: true,
-        preserveFocus: true, // 高亮不需要聚焦，只需要获取到活动的编辑器
-        viewColumn: vscode.ViewColumn.One,
+
+        // // You don't need to focus on the editor, just need to get the active editor for highlight
+        preserveFocus: true, 
+        viewColumn: vscode.ViewColumn.One, // show the source file in the first group
     }).then((editor) => {
+        // If the line is the same as the previous line, don't highlight it
         // if (line != previousLine) {
-            highlightLine(editor, line);
+            highlightLine(editor, line, sourceFileHighlight);
             // previousLine = line;
         // }
     }).then(() => vscode.window.activeTerminal?.show());
 }
-
-async function getFilePathAndHighlightLine(address: string): Promise<[string | null, number]> {
-    return new Promise((resolve) => {
-        /* get the file path of the function (gdb info functions name) */
-        // let file: string | null;
-        // let line: number;
-
-        getFilePathAndLine(elfFilePath, address).then((result) => {
-            // resolve([result.fullname, result.line]);
-            resolve(result);
-        });
-
-        // getFilePathFromAddress(elfFilePath, address).then((filePath) => {
-        //     file = filePath;
-        //     if (filePath == null) {
-        //         // console.log('The function is not be traced');
-        //         resolve([null, -1]);
-        //     } else {
-        //         // console.log('filePath: ', filePath);
-        //         /* get the number of line that will be highlighted (gdb disas /s name) */
-        //         getSrcHighLightLineNumber(elfFilePath, address).then((lineNumber) => {
-        //             line = lineNumber;
-        //             if (lineNumber == -1) {
-        //                 // console.log('Clear the current highlight');
-        //                 sourceFileHighlight?.dispose();
-        //                 resolve([null, -1]);
-        //             } else {
-        //                 // console.log('hl lineNumber: ', lineNumber);
-        //                 resolve([file, line]);
-        //             }
-        //         }); 
-        //     }
-        // });
-    });
-}
-
 
 /**
  * 
@@ -268,75 +198,39 @@ async function getFilePathAndHighlightLine(address: string): Promise<[string | n
  * @param line the line number that will be highlighted (start at 1 from GDB)
  *              so, we need to minus 1 before highlight in vscode is start at 0 
  */
-function highlightLine(editor: vscode.TextEditor, line: number) {
+function highlightLine(editor: vscode.TextEditor, line: number,
+    decorationSelector: { current: vscode.TextEditorDecorationType | undefined }) {
 
-    line = line - 1; // start from 0
+    line = line - 1; // start from 0 in vscode
 
     /* Highlight line */
 
-    // 清除之前的装饰
-    sourceFileHighlight?.dispose();
+    // clear previous decoration
+    decorationSelector.current?.dispose();
 
-    // 创建一个新的范围（Range），用于高亮
+    // create a new range for highlight
     let range = editor.document.lineAt(line).range;
 
-    // 计算高亮范围
-    // const start = new vscode.Position(line, 0);
-    // const end = new vscode.Position(line, Number.MAX_SAFE_INTEGER);
-    // let end = new vscode.Position(line, 3);
-    // const range = new vscode.Range(start, end);
-
-    // 创建装饰类型，这里设置背景色为 blue
-    sourceFileHighlight = vscode.window.createTextEditorDecorationType({
-        // backgroundColor: 'rgba(57, 155, 237, 0.4)',
+    decorationSelector.current = vscode.window.createTextEditorDecorationType({
+        // backgroundColor: 'rgba(57, 155, 237, 0.4)', // blue
         backgroundColor: `${highlightColor}`,
         isWholeLine: true,
 
+        /* Set gutter icon */
         // currentPath: /home/../ysyx-sdb-tui-server/out/
         // gutterIconPath: currentPath.join(__dirname, '../src/decoration/arrow.png'), 
         // gutterIconSize: 'contain'
     });
 
-    // 应用装饰类型到编辑器
-    editor.setDecorations(sourceFileHighlight, [range]);
-
     // console.log('icon path: ', currentPath.join(__dirname, 'image/icon.jpg'));
+
+    // apply decoration to editor
+    editor.setDecorations(decorationSelector.current, [range]);
+
 
     // jump to line and make it middle
     editor.selection = new vscode.Selection(line, 0, line, 0);
     editor.revealRange(range, vscode.TextEditorRevealType.InCenter);
 
-    console.log('高亮行号：', line);
+    // console.log('highlight line: ', line);
 }
-
-
-/**
- * 检查给定路径的文件是否已在 VS Code 中打开且显示在前面。
- * @param {string} path absolute path
- * @return {boolean} true if the file is opened and displayed
- */
-// export function isFileOpenAndVisible(path: string) {
-
-//     // 将输入路径转换为绝对路径（如果需要）并标准化
-//     // const targetPath = vscode.Uri.file(path).fsPath;
-
-//     // 遍历所有当前可见的编辑器
-//     // 指的是你可以看见的页面，如果多个窗口，都算，但是标签页打开但看不见内容的，不算
-//     console.log('*********************************')
-//     for (const editor of vscode.window.visibleTextEditors) {
-//         // 获取编辑器中文档的文件系统路径
-//         const documentPath = editor.document.uri.fsPath;
-
-//         console.log(documentPath)
-
-//         // 比较文档路径和目标路径
-//         if (documentPath === path) {
-//             // 找到了匹配，表示文件已被打开且可见
-//             return true;
-//         }
-//     }
-//     console.log('*********************************')
-
-//     // 没有找到匹配的编辑器，表示文件未打开或不可见
-//     return false;
-// }
