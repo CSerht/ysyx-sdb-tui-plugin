@@ -83,7 +83,7 @@ type PcLine = {
  * @param filePath 
  * @param line 
  * @returns If the line is debugging, the line will correspond to 
- *          one or more pc, return the first pc (number value)
+ *          one or more pc, return the first pc (string)
  *          If the line is not debugging, return null.
  * 
  * Result example:
@@ -126,7 +126,8 @@ export async function parseBreakpointByGdb(filePath: string, line: number) {
         // console.log("line: ", line);
         if (line == parseInt(lineNum, 10)) {
             console.log(`line: ${line} --> pc: ${pc}`);
-            return parseInt(pc, 16);
+            // return parseInt(pc, 16);
+            return pc;
         }
     }
 

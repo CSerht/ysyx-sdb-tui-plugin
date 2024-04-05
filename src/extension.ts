@@ -1,7 +1,7 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
-import { Server } from "socket.io";
+import { Server } from "socket.io";	
 import {
 	focusFileAndHighlightDisassembly, setDisassemblyFilePath,
 	focusFileAndHighlightSourceFile, setElfFilePath,
@@ -9,7 +9,11 @@ import {
 } from "./file-op";
 
 import { gdbsession } from './gdb-parser';
-import { clearAllBreakpoints,listenAndOperateBreakpoints } from './breakpoints';
+import {
+	clearAllBreakpoints,
+	listenAndOperateBreakpoints,
+	registerSocketIO,
+} from './breakpoints';
 
 let io: Server | undefined;
 export let gdbTool: string;
@@ -40,6 +44,8 @@ export function activate(context: vscode.ExtensionContext) {
 					origin: "*"
 				}
 			});
+
+			registerSocketIO(io);
 
 			io.on("connection", (socket) => {
 				console.log("A user connected");

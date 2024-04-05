@@ -1,5 +1,18 @@
 import * as vscode from 'vscode';
 import { parseBreakpointByGdb } from './gdb-parser';
+import { Server } from "socket.io";	
+
+
+let ioReference: Server | undefined;
+/**
+ * 
+ * @param io socket.io server, started in extension.ts
+ */
+export function registerSocketIO(io: Server | undefined)
+{
+    ioReference = io;
+    console.log('register io', ioReference);
+}
 
 /**
  * Clear all breakpoints when the client is connected.
@@ -68,7 +81,6 @@ export function listenAndOperateBreakpoints() {
         //             breakpoint.location.range.start.line + 1);
         //     }
         // });
-            
 	});
 }
 
@@ -81,17 +93,20 @@ export function listenAndOperateBreakpoints() {
  */
 async function addClientBreakpoint(filePath: string, line: number) {
     
-    let pc = await parseBreakpointByGdb(filePath, line);
+    let pc: string | null = await parseBreakpointByGdb(filePath, line);
 
     if (pc == null) {
         console.log('Failed to parse breakpoint');
         return false;
     }
 
-    console.log(`breakpoint pc is 0x${pc.toString(16)}`);
-
+    /* Send 'pc' to client */
+    addClientBreakpointByPc(pc);
+    console.log(`breakpoint pc is 0x${pc}`);
     return true;
-    
-   
-    // return false;
+}
+
+function addClientBreakpointByPc(pc: string) {
+    ioReference?.emit("message", `breakpoint ${pc}`);
+    console.log(`Send message to client, breakpoint pc is 0x${pc}`);
 }
